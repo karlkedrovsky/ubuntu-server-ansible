@@ -1,0 +1,62 @@
+---
+- hosts: localhost
+  become: true
+  tasks:
+  - name: update cache and upgrade existing packages
+    apt: upgrade=dist update_cache=yes cache_valid_time=3600 force=yes autoremove=yes
+  - name: install packages
+    apt:
+      name:
+        - zsh
+        - vim
+        - keychain
+        - curl
+        - htop
+        - docker.io
+        - docker-compose
+        - openssh-server
+  - name: create user karl
+    user:
+      name: karl
+      shell: /usr/bin/zsh
+      groups: sudo,docker
+      ssh_key_bits: 521
+      ssh_key_type: ecdsa
+      ssh_key_file: .ssh/ecdsa
+  - name: set git username
+    git_config: name=user.name scope=global value="Karl Kedrovsky"
+    become: yes
+    become_user: karl
+  - name: set git email
+    git_config: name=user.email scope=global value="karl@kedrovsky.com"
+    become: yes
+    become_user: karl
+  - name: checkout oh-my-zsh
+    git: repo=https://github.com/robbyrussell/oh-my-zsh dest=/home/karl/oh-my-zsh
+    become: yes
+    become_user: karl
+  - name: create custom zsh theme directory
+    file: path=/home/karl/oh-my-zsh/custom/themes state=directory owner=karl mode=0755
+  - name: check for user config files
+    stat: path=config
+    register: user_config_files
+    ignore_errors: True
+  - name: checkout config
+    git: repo=https://github.com/karlkedrovsky/config dest=/home/karl/config
+    become: yes
+    become_user: karl
+    when: user_config_files.stat.exists == False
+  - name: copy custom zsh theme
+    copy: src=/home/karl/config/karl.zsh-theme dest=/home/karl/oh-my-zsh/custom/themes/karl.zsh-theme owner=karl mode=0644
+  - name: link .zshrc
+    file: src=/home/karl/config/zshrc dest=/home/karl/.zshrc state=link
+    become: yes
+    become_user: karl
+  - name: link .aliases
+    file: src=/home/karl/config/aliases dest=/home/karl/.aliases state=link
+    become: yes
+    become_user: karl
+  - name: link .drush
+    file: src=/home/karl/config/drush dest=/home/karl/.drush state=link
+    become: yes
+    become_user: karl
