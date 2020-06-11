@@ -1,0 +1,53 @@
+---
+- hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    current_user_name: "{{ lookup('env', 'USER') }}"
+  tasks:
+  - name: update cache and upgrade existing packages
+    apt: upgrade=dist update_cache=yes cache_valid_time=3600 force=yes autoremove=yes
+  - name: install packages
+    apt:
+      name:
+        - zsh
+        - vim
+        - git
+        - keychain
+        - curl
+        - htop
+        - docker.io
+        - docker-compose
+  - name: allow sudo without password
+    lineinfile:
+      path: /etc/sudoers
+      state: present
+      regex: '^%sudo'
+      line: '%sudo ALL=(ALL:ALL) NOPASSWD:ALL'
+      validate: /usr/sbin/visudo -cf %s
+  - name: create user for current user
+    user:
+      name: "{{ current_user_name }}"
+      shell: /usr/bin/zsh
+      groups: sudo,docker
+      ssh_key_bits: 521
+      ssh_key_type: ecdsa
+      ssh_key_file: .ssh/ecdsa
+  - name: copy current user public key
+    authorized_key:
+      user: "{{ current_user_name }}"
+      state: present
+      key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_ecdsa.pub') }}"
+  - name: set up docker network for proxy server
+    docker_network:
+      name: web
+  - name: create directory for global proxy container
+    file:
+      path: "{{ ansible_env.HOME }}/docker"
+      state: directory
+  - name: copy proxy config files to the server
+    copy: src=docker/proxy dest="{{ ansible_env.HOME }}/docker"
+  - name: start proxy container
+    docker_compose:
+      project_src: "{{ ansible_env.HOME }}/docker/proxy"
+

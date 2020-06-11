@@ -1,0 +1,35 @@
+---
+- hosts: all
+  vars:
+    current_user_name: "{{ lookup('env', 'USER') }}"
+  vars_prompt:
+    - name: git_user_name
+      prompt: "What is the name you want to use for git?"
+      private: no
+    - name: git_email
+      prompt: "What is the email address you want to use for git?"
+      private: no
+  tasks:
+  - name: set git username
+    git_config: name=user.name scope=global value="{{ git_user_name }}"
+  - name: set git email
+    git_config: name=user.email scope=global value="{{ git_email }}"
+  - name: checkout oh-my-zsh
+    git: repo=https://github.com/robbyrussell/oh-my-zsh dest="/home/{{ current_user_name }}/oh-my-zsh"
+  - name: create custom zsh theme directory
+    file: path="/home/{{ current_user_name }}/oh-my-zsh/custom/themes" state=directory owner="{{ current_user_name }}" mode=0755
+  - name: check for user config files
+    stat: path=config
+    register: user_config_files
+    ignore_errors: True
+  - name: checkout config
+    git: repo=https://github.com/karlkedrovsky/config dest="/home/{{ current_user_name }}/config"
+    when: user_config_files.stat.exists == False
+  - name: copy custom zsh theme
+    copy: remote_src=yes src="/home/{{ current_user_name }}/config/karl.zsh-theme" dest="/home/{{ current_user_name }}/oh-my-zsh/custom/themes/karl.zsh-theme" owner="{{ current_user_name }}" mode=0644
+  - name: link .zshrc
+    file: src="/home/{{ current_user_name }}/config/zshrc" dest="/home/{{ current_user_name }}/.zshrc" state=link
+  - name: link .aliases
+    file: src="/home/{{ current_user_name }}/config/aliases" dest="/home/{{ current_user_name }}/.aliases" state=link
+  - name: link .drush
+    file: src="/home/{{ current_user_name }}/config/drush" dest="/home/{{ current_user_name }}/.drush" state=link
