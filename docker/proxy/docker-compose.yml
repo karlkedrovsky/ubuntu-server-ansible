@@ -7,14 +7,22 @@ services:
         restart: unless-stopped
         ports:
             - "80:80"
-            - "8080:8080"
+            - "443:443"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./traefik.toml:/traefik.toml
+            - {{ ansible_env.HOME }}/docker/proxy/htpasswd:/htpasswd
+            - {{ ansible_env.HOME }}/acme.json:/acme.json
         labels:
-            - "traefic.enable=true"
-            - "traefik.http.routers.api.rule=Host('monitor.raspberrypi4')"
-            - "traefik.http.routers.api.service=api@internal"
+            - "traefik.enable=true"
+            - "traefik.http.routers.dashboard.rule=Host(`{{ traefik_hostname }}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+            - "traefik.http.routers.dashboard.service=api@internal"
+            - "traefik.http.routers.dashboard.middlewares=dashboard_redirectscheme,dashboard_auth"
+            - traefik.http.routers.dashboard.tls=true
+            - traefik.http.routers.dashboard.tls.certresolver=myresolver
+            - "traefik.http.middlewares.dashboard_redirectscheme.redirectscheme.scheme=https"
+            - "traefik.http.middlewares.dashboard_redirectscheme.redirectscheme.permanent=true"
+            - "traefik.http.middlewares.dashboard_auth.basicauth.usersFile=/htpasswd"
         networks:
             - web
 

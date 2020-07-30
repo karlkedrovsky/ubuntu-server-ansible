@@ -4,6 +4,9 @@
   gather_facts: true
   vars:
     current_user_name: "{{ lookup('env', 'USER') }}"
+    htpasswd_file: "{{ ansible_env.HOME }}/docker/proxy/htpasswd"
+  vars_files:
+    - secrets.yml
   tasks:
   - name: update cache and upgrade existing packages
     apt: upgrade=dist update_cache=yes cache_valid_time=3600 force=yes autoremove=yes
@@ -16,6 +19,7 @@
         - keychain
         - curl
         - htop
+        - python3-passlib
         - docker.io
         - docker-compose
   - name: allow sudo without password
@@ -45,9 +49,31 @@
     file:
       path: "{{ ansible_env.HOME }}/docker"
       state: directory
-  - name: copy proxy config files to the server
-    copy: src=docker/proxy dest="{{ ansible_env.HOME }}/docker"
+  - name: copy proxy docker compose file to the server
+    template:
+      src: docker/proxy/docker-compose.yml
+      dest: "{{ ansible_env.HOME }}/docker/proxy/docker-compose.yml"
+  - name: copy proxy config file to the server
+    copy:
+      src: docker/proxy/traefik.toml
+      dest: "{{ ansible_env.HOME }}/docker/proxy/traefik.toml"
+  - name: set traefik dashboard user and password
+    htpasswd:
+      path: "{{ htpasswd_file }}"
+      name: "{{ basic_auth_user }}"
+      password: "{{ basic_auth_password }}"
+      owner: root
+      group: docker
+      mode: 0640
+  - name: create letsencrypt storage file
+    copy:
+      content: ""
+      dest: "{{ ansible_env.HOME }}/acme.json"
+      force: no
+      owner: root
+      group: root
+      mode: 0600
   - name: start proxy container
     docker_compose:
       project_src: "{{ ansible_env.HOME }}/docker/proxy"
-
+      restarted: yes
